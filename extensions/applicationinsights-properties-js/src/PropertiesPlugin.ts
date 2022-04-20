@@ -1,38 +1,43 @@
 /**
- * PropertiesPlugin.ts
- * @copyright Microsoft 2018
- */
+* PropertiesPlugin.ts
+* @copyright Microsoft 2018
+*/
 
 import dynamicProto from "@microsoft/dynamicproto-js";
 import {
-    BaseTelemetryPlugin, IConfiguration, isNullOrUndefined,
-    IAppInsightsCore, IPlugin, ITelemetryItem, IProcessTelemetryContext, _InternalLogMessage, eLoggingSeverity, _eInternalMessageId, getNavigator,
-    ITelemetryPluginChain, objForEachKey, getSetValue, _logInternalMessage
+    BreezeChannelIdentifier, IConfig, IPropertiesPlugin, PageView, PropertiesPluginIdentifier, getExtensionByName
+} from "@microsoft/applicationinsights-common";
+import {
+    BaseTelemetryPlugin, IAppInsightsCore, IConfiguration, IPlugin, IProcessTelemetryContext, ITelemetryItem, ITelemetryPluginChain,
+    _InternalLogMessage, _eInternalMessageId, _logInternalMessage, createProcessTelemetryContext, eLoggingSeverity, getNavigator,
+    getSetValue, isNullOrUndefined, objForEachKey
 } from "@microsoft/applicationinsights-core-js";
-import { TelemetryContext } from "./TelemetryContext";
-import { PageView, IConfig, BreezeChannelIdentifier, PropertiesPluginIdentifier, IPropertiesPlugin, getExtensionByName } from "@microsoft/applicationinsights-common";
-import { ITelemetryConfig } from "./Interfaces/ITelemetryConfig";
 import { IPropTelemetryContext } from "./Interfaces/IPropTelemetryContext";
+import { ITelemetryConfig } from "./Interfaces/ITelemetryConfig";
+import { TelemetryContext } from "./TelemetryContext";
 
 export default class PropertiesPlugin extends BaseTelemetryPlugin implements IPropertiesPlugin {
 
     public static getDefaultConfig(): ITelemetryConfig {
+        let defaultValue: string;
+        let nullValue: any = null;
+
         const defaultConfig: ITelemetryConfig = {
-            instrumentationKey: () => undefined,
-            accountId: () => null,
+            instrumentationKey: () => defaultValue,
+            accountId: () => nullValue,
             sessionRenewalMs: () => 30 * 60 * 1000,
             samplingPercentage: () => 100,
             sessionExpirationMs: () => 24 * 60 * 60 * 1000,
-            cookieDomain: () => null,
-            sdkExtension: () => null,
+            cookieDomain: () => nullValue,
+            sdkExtension: () => nullValue,
             isBrowserLinkTrackingEnabled: () => false,
-            appId: () => null,
-            getSessionId: () => null,
-            namePrefix: () => undefined,
-            sessionCookiePostfix: () => undefined,
-            userCookiePostfix: () => undefined,
+            appId: () => nullValue,
+            getSessionId: () => nullValue,
+            namePrefix: () => defaultValue,
+            sessionCookiePostfix: () => defaultValue,
+            userCookiePostfix: () => defaultValue,
             idLength: () => 22,
-            getNewId: () => null
+            getNewId: () => nullValue
         };
         
         return defaultConfig;
@@ -53,20 +58,12 @@ export default class PropertiesPlugin extends BaseTelemetryPlugin implements IPr
 
             _self.initialize = (config: IConfiguration & IConfig, core: IAppInsightsCore, extensions: IPlugin[], pluginChain?:ITelemetryPluginChain) => {
                 _base.initialize(config, core, extensions, pluginChain);
-                let ctx = _self._getTelCtx();
-                let identifier = _self.identifier;
-                const defaultConfig: ITelemetryConfig = PropertiesPlugin.getDefaultConfig();
-                _extensionConfig = _extensionConfig || {} as ITelemetryConfig;
-                objForEachKey(defaultConfig, (field, value) => {
-                    _extensionConfig[field] = () => ctx.getConfig(identifier, field, value());
-                });
+
+                _populateDefaults(config);
     
                 _self.context = new TelemetryContext(core, _extensionConfig);
                 _breezeChannel = getExtensionByName(extensions, BreezeChannelIdentifier);
                 _self.context.appId = () => _breezeChannel ? _breezeChannel["_appId"] : null;
-
-                // Test hook to allow accessing the internal values -- explicitly not defined as an available property on the class
-                _self["_extConfig"] = _extensionConfig;
             };
     
             /**
@@ -109,6 +106,20 @@ export default class PropertiesPlugin extends BaseTelemetryPlugin implements IPr
                 }
             };
     
+            function _populateDefaults(config: IConfiguration) {
+                let identifier = _self.identifier;
+
+                let ctx = createProcessTelemetryContext(null, config, _self.core);
+                const defaultConfig: ITelemetryConfig = PropertiesPlugin.getDefaultConfig();
+                _extensionConfig = _extensionConfig || {} as ITelemetryConfig;
+                objForEachKey(defaultConfig, (field, value) => {
+                    _extensionConfig[field] = () => ctx.getConfig(identifier, field, value());
+                });
+
+                // Test hook to allow accessing the internal values -- explicitly not defined as an available property on the class
+                _self["_extConfig"] = _extensionConfig;
+            }
+
             function _processTelemetryInternal(evt: ITelemetryItem, itemCtx: IProcessTelemetryContext) {
                 // Set Part A fields
                 getSetValue(evt, "tags", []);

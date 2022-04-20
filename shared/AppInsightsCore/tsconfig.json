@@ -9,7 +9,6 @@
     "forceConsistentCasingInFileNames": true,
     "importHelpers": true,
     "noEmitHelpers": true,
-    "skipLibCheck": true,
     "alwaysStrict": true,
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
